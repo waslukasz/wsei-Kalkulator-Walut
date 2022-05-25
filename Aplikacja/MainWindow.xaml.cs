@@ -1,9 +1,13 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,21 +27,76 @@ namespace Aplikacja
     /// </summary>
     public partial class MainWindow : Window
     {
-        record Rate(string currency, string code, decimal ask, decimal bid);
+        record Rate
+        {
+            [JsonPropertyName("currency")]
+            public string Currency { get; set; }
+            [JsonPropertyName("code")]
+            public string Code { get; set; }
+            [JsonPropertyName("ask")]
+            public decimal Ask { get; set; }
+            [JsonPropertyName("bid")]
+            public decimal Bid { get; set; }
+
+            public Rate(string Currency, string Code, decimal Ask, decimal Bid)
+            {
+                this.Currency = Currency;
+                this.Code = Code;
+                this.Ask = Ask;
+                this.Bid = Bid;
+            }
+
+            public Rate() { }
+        };
         Dictionary<string, Rate> Rates = new Dictionary<string, Rate>();
 
         public MainWindow()
         {
             InitializeComponent();
             DownloadData();
+            UpdateGui();
+        }
+        void UpdateGui()
+        {
+            InputCurrencyCode.Items.Clear();
+            OutputCurrencyCode.Items.Clear();
             foreach (var code in Rates)
             {
                 InputCurrencyCode.Items.Add(code.Key);
                 OutputCurrencyCode.Items.Add(code.Key);
             }
             OutputCurrencyCode.SelectedIndex = 0;
-            InputCurrencyCode.SelectedValue = "PLN";
+            InputCurrencyCode.SelectedIndex = 1;
+        }
 
+        class RatesTable
+        {
+            [JsonPropertyName("table")]
+            public string Table { get; set; }
+            [JsonPropertyName("no")]
+            public string Number { get; set; }
+            [JsonPropertyName("tradingDate")]
+            public DateTime TradingDate { get; set; }
+            [JsonPropertyName("effectiveDate")]
+            public DateTime EffectiveDate { get; set; }
+            [JsonPropertyName("rates")]
+            public List<Rate> Rates { get; set; }
+        }
+
+        private void DownloadJsonData()
+        {
+            CultureInfo info = CultureInfo.CreateSpecificCulture("en-EN");
+            WebClient client = new WebClient();
+            client.Headers.Add("Accept", "application/json");
+            string json = client.DownloadString("http://api.nbp.pl/api/exchangerates/tables/C/");
+            var tableRates = JsonSerializer.Deserialize<List<RatesTable>>(json);
+            RatesTable table = tableRates[0];
+            table.Rates.Add(new Rate("polski złoty", "PLN", 1, 1));
+
+            foreach (var rate in table.Rates)
+            {
+                Rates.Add(rate.Code, rate);
+            }
         }
 
         private void DownloadData()
@@ -61,7 +120,7 @@ namespace Aplikacja
                 ));
             foreach (Rate rate in rates)
             {
-                Rates.Add(rate.code, rate);
+                Rates.Add(rate.Code, rate);
             }
             Rates.Add("PLN", new Rate("polski złoty", "PLN", 1, 1));
         }
@@ -72,10 +131,62 @@ namespace Aplikacja
             // pobrac kod waluty kwoty
             // pobrac kod waluty kwoty docelowej
             // obliczyc
-            decimal input = Decimal.Parse(InputAmount.Text);
             Rates.TryGetValue(InputCurrencyCode.Text, out Rate inputRate);
             Rates.TryGetValue(OutputCurrencyCode.Text, out Rate outputRate);
-            OutputAmount.Text = $"{input / outputRate.ask * inputRate.ask}";
+
+            if (decimal.TryParse(InputAmount.Text, out decimal amount))
+            {
+                decimal input = Decimal.Parse(InputAmount.Text);
+                OutputAmount.Text = $"{input / outputRate.Ask * inputRate.Ask}";
+            };
+            
+        }
+
+        private void LoadFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Title = "Wybierz plik z notowaniami.";
+            dialog.Filter = "Plik tekstowy (*.txt)|*.txt|Plik json (*.json)|*.json";
+            dialog.ShowDialog();
+            if (dialog.ShowDialog() == true)
+            {
+                if(File.Exists(dialog.FileName))
+                {
+                    if(dialog.FileName.EndsWith(".txt"))
+                    {
+                        string[] lines = File.ReadAllLines(dialog.FileName);
+                        Rates.Clear();
+                        foreach (var line in lines)
+                        {
+                            string[] token = line.Split(";");
+                            string code = token[0];
+                            string currency = token[1];
+                            string askStr = token[2];
+                            string bidStr = token[3];
+                            if (decimal.TryParse(askStr, out decimal ask) && decimal.TryParse(bidStr, out decimal bid))
+                            {
+                                Rate rate = new Rate() { Code = code, Currency = currency, Ask = ask, Bid = bid };
+                                Rates.Add(rate.Code, rate);
+                            };
+                        }
+                    } else if (dialog.FileName.EndsWith(".json"))
+                    {
+                        string content = File.ReadAllText(dialog.FileName);
+                        Rates.Clear();
+                        Rates = JsonSerializer.Deserialize<Dictionary<string, Rate>>(content);
+                    }
+                    UpdateGui();
+                }
+            }
+        }
+
+        private void SaveFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog dialog = new SaveFileDialog();
+            dialog.Title = "Wybierz miejsce zapisu";
+            dialog.Filter = "Plik json (*.json)|*.json";
+            dialog.ShowDialog();
+            if (dialog.ShowDialog() == true) File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(Rates.Values));
         }
 
         private void NumberValidation(object sender, TextCompositionEventArgs e)

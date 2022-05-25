@@ -1,0 +1,3 @@
+USD;dolar amerykański;4,497;4,567
+EUR;euro;4,678;4,789
+PLN;polski złoty;1,000;1,000
