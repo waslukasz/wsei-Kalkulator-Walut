@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -53,8 +54,27 @@ namespace Aplikacja
         public MainWindow()
         {
             InitializeComponent();
-            DownloadData();
-            UpdateGui();
+            Task.Run(() =>
+            {
+                try
+                {
+                    DownloadJsonData();
+                    Application.Current.Dispatcher.Invoke(() => UpdateGui());
+                    CalcBtn.Dispatcher.Invoke(() => CalcBtn.IsEnabled = true);
+                }
+                catch (WebException ex)
+                {
+                    MessageBox.Show("Nieudana próba połączenia z API.", "Brak dostępu do sieci.");
+                    CalcBtn.Dispatcher.Invoke(() => CalcBtn.IsEnabled = false);
+                }
+                catch (JsonException ex)
+                {
+                    MessageBox.Show("Błąd formatu danych!", "Problem z wczytywaniem pliku Json.");
+                    CalcBtn.Dispatcher.Invoke(() => CalcBtn.IsEnabled = false);
+                }
+            });
+
+
         }
         void UpdateGui()
         {

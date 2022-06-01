@@ -26,7 +26,7 @@
         <TextBox x:Name="InputAmount" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" FontSize="48" TextAlignment="right" VerticalContentAlignment="Center" Padding="10" Margin="10" PreviewTextInput="NumberValidation">
             0,00
         </TextBox>
-        <Button Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3" Margin="10" RenderTransformOrigin="1,0" ClickMode="Release" Click="Calculate">
+        <Button x:Name="CalcBtn" Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="3" Margin="10" RenderTransformOrigin="1,0" ClickMode="Release" Click="Calculate">
             <StackPanel Orientation="Vertical">
                 <TextBlock FontSize="36" Foreground="#66bb33" TextAlignment="center">
                     Przelicz
